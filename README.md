@@ -10,10 +10,11 @@ A fully functional Windows Server 2022 Active Directory environment built in Vir
 |---|---|
 | Hypervisor | VirtualBox (macOS host) |
 | Domain Controller | Windows Server 2022 — `DC01` |
+| Client Machine | Windows 10 Pro — `CLIENT01` |
 | Domain Name | `corp.local` |
 | DC IP Address | `192.168.10.10` (static) |
+| Client IP Address | `192.168.10.20` (static) |
 | Network | Internal NAT — `192.168.10.0/24` |
-| Client VMs | Windows 10 (Phase 2) |
 
 ---
 
@@ -22,7 +23,7 @@ A fully functional Windows Server 2022 Active Directory environment built in Vir
 ```
 [macOS Host — VirtualBox]
         |
-        |— NAT Adapter (internet access)
+        |— NAT Adapter (internet access for DC01)
         |
         |— Internal Network: corp-net (192.168.10.0/24)
                |
@@ -30,10 +31,11 @@ A fully functional Windows Server 2022 Active Directory environment built in Vir
                |    IP: 192.168.10.10
                |    Roles: AD DS, DNS
                |
-               |— CLIENT01 (Windows 10)         [Phase 2]
+               |— CLIENT01 (Windows 10 Pro)
                |    IP: 192.168.10.20
+               |    Joined to: corp.local
                |
-               |— CLIENT02 (Windows 10)         [Phase 2]
+               |— CLIENT02 (Windows 10)         [Phase 3 — planned]
                     IP: 192.168.10.21
 ```
 
@@ -47,7 +49,7 @@ A fully functional Windows Server 2022 Active Directory environment built in Vir
 - Installed and configured Active Directory Domain Services (AD DS) and DNS Server roles
 - Promoted the server to a Domain Controller for the new forest `corp.local`
 
-### Organizational Unit Structure
+### Organizational Unit structure
 
 ```
 corp.local
@@ -57,7 +59,7 @@ corp.local
 └── Servers
 ```
 
-### User Accounts Created
+### User accounts
 
 | Username | OU | Role |
 |---|---|---|
@@ -68,7 +70,7 @@ corp.local
 
 ### Group Policy — Security Baseline GPO
 
-Applied at the domain level (`corp.local`). Configured the following Account Policies:
+Linked at the domain level (`corp.local`) with link order 1 (highest precedence). Configured the following Account Policies:
 
 | Policy | Setting |
 |---|---|
@@ -76,15 +78,43 @@ Applied at the domain level (`corp.local`). Configured the following Account Pol
 | Maximum password age | 90 days |
 | Account lockout threshold | 5 invalid attempts |
 
+> **Troubleshooting note:** Account lockout policies in Active Directory only apply domain-wide when the GPO is set to link order 1 at the domain root. Resolved a precedence conflict by promoting Security Baseline above Default Domain Policy rather than modifying Default Domain Policy directly — the correct enterprise approach.
+
 ---
 
-## Phase 2 — Client Machines & Helpdesk Scenarios (In Progress)
+## Phase 2 — Client Machine & Helpdesk Scenarios (Complete)
 
-- [ ] Deploy Windows 10 VM (`CLIENT01`) and join to `corp.local`
-- [ ] Deploy second Windows 10 VM (`CLIENT02`) — optional
-- [ ] Simulate helpdesk tickets (password resets, account lockouts, permission issues, new user onboarding)
-- [ ] Configure Remote Desktop and test remote support workflow
-- [ ] Document runbook for common helpdesk tasks
+### What was built
+- Deployed Windows 10 Pro VM (`CLIENT01`) with a static IP of `192.168.10.20`
+- Pointed CLIENT01's DNS to DC01 (`192.168.10.10`) to enable domain resolution
+- Successfully joined CLIENT01 to `corp.local` and moved it into the Workstations OU
+- Forced Group Policy application using `gpupdate /force` and verified with `gpresult /r`
+- Created and managed security groups following role-based access control (RBAC) principles
+
+### Security groups created
+
+| Group | OU | Type | Scope |
+|---|---|---|---|
+| IT_Staff | IT_Department | Security | Global |
+| HR_Staff | HR_Department | Security | Global |
+| FileShare_HR | HR_Department | Security | Global |
+
+> Users are never assigned permissions directly — permissions are assigned to security groups, and users are added to groups. This mirrors real enterprise access control practices.
+
+### Helpdesk scenarios practised
+
+**Account lockout & unlock**
+- Triggered account lockout on `jsmith` by exceeding the 5-attempt threshold from CLIENT01
+- Unlocked the account via Active Directory Users and Computers on DC01 (Properties > Account > Unlock)
+
+**Password reset**
+- Reset `alee`'s password via ADUC with "User must change password at next logon" enforced
+- Logged in as `alee` on CLIENT01 and completed the forced password change workflow end-to-end
+
+**New user onboarding**
+- Created new user `nhire` in HR_Department with a temporary password
+- Added `nhire` to the `HR_Staff` security group
+- Logged in as `nhire` on CLIENT01 to verify end-to-end account provisioning
 
 ---
 
@@ -95,12 +125,13 @@ Applied at the domain level (`corp.local`). Configured the following Account Pol
 - [ ] Write PowerShell scripts for bulk user creation and account auditing (see `/scripts`)
 - [ ] Harden DNS settings and review event logs for suspicious activity
 - [ ] Implement additional GPOs (drive mapping, software restriction, wallpaper enforcement)
+- [ ] Set up a shared network folder and apply FileShare_HR permissions
 
 ---
 
 ## Scripts
 
-PowerShell automation scripts will be added to the `/scripts` folder in Phase 2 and 3. Planned scripts:
+PowerShell automation scripts will be added to the `/scripts` folder in Phase 3. Planned scripts:
 
 - `New-BulkUsers.ps1` — Create multiple AD users from a CSV file
 - `Get-LockedAccounts.ps1` — Audit and report locked user accounts
@@ -109,20 +140,33 @@ PowerShell automation scripts will be added to the `/scripts` folder in Phase 2 
 
 ---
 
-## Skills Demonstrated
+## Key troubleshooting performed
 
-- Windows Server 2022 installation and configuration
-- Active Directory Domain Services (AD DS) setup and administration
-- DNS Server configuration
-- Organizational Unit (OU) design and user account management
-- Group Policy Object (GPO) creation and application
-- Network adapter configuration and static IP assignment
-- Virtual machine provisioning and network isolation (VirtualBox)
-- IT security fundamentals — password policy, account lockout, least privilege
+| Issue | Cause | Resolution |
+|---|---|---|
+| GPO not applying to CLIENT01 | Policy not yet pulled after domain join | Ran `gpupdate /force`, verified with `gpresult /r` |
+| Account lockout policy not triggering | GPO link order conflict with Default Domain Policy | Promoted Security Baseline to link order 1 at domain root |
 
 ---
 
-## Certifications & Context
+## Skills demonstrated
+
+- Windows Server 2022 installation and configuration
+- Active Directory Domain Services (AD DS) setup and administration
+- DNS Server configuration and domain name resolution
+- Organizational Unit (OU) design and user account management
+- Security group creation and role-based access control (RBAC)
+- Group Policy Object (GPO) creation, linking, and precedence management
+- GPO troubleshooting using `gpupdate /force` and `gpresult /r`
+- Windows 10 Pro domain join and client configuration
+- Helpdesk workflows — account lockout, password reset, new user onboarding
+- Network adapter configuration and static IP assignment
+- Virtual machine provisioning and network isolation (VirtualBox)
+- IT security fundamentals — least privilege, password policy, account lockout
+
+---
+
+## Certifications & context
 
 This lab was built to complement preparation for IT support roles and supports skills covered in:
 - **CompTIA Security+** (SY0-701) — earned May 2025
@@ -130,4 +174,4 @@ This lab was built to complement preparation for IT support roles and supports s
 
 ---
 
-*This lab is actively being expanded. See phases above for upcoming additions.*
+*This lab is actively being expanded. See Phase 3 above for upcoming additions.*
