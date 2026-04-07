@@ -21,27 +21,27 @@ A fully functional Windows Server 2022 Active Directory environment built in Vir
 ## Network Topology
 
 ```
-[macOS Host — VirtualBox]
+[macOS Host - VirtualBox]
         |
-        |— NAT Adapter (internet access for DC01)
+        |-- NAT Adapter (internet access for DC01)
         |
-        |— Internal Network: corp-net (192.168.10.0/24)
+        |-- Internal Network: corp-net (192.168.10.0/24)
                |
-               |— DC01 (Windows Server 2022)
+               |-- DC01 (Windows Server 2022)
                |    IP: 192.168.10.10
                |    Roles: AD DS, DNS
                |
-               |— CLIENT01 (Windows 10 Pro)
+               |-- CLIENT01 (Windows 10 Pro)
                |    IP: 192.168.10.20
                |    Joined to: corp.local
                |
-               |— CLIENT02 (Windows 10)         [Phase 3 — planned]
+               |-- CLIENT02 (Windows 10)         [Phase 3 - planned]
                     IP: 192.168.10.21
 ```
 
 ---
 
-## Phase 1 — Domain Controller Setup (Complete)
+## Phase 1 - Domain Controller Setup (Complete)
 
 ### What was built
 - Deployed Windows Server 2022 in VirtualBox with dual network adapters (NAT + Internal)
@@ -68,7 +68,7 @@ corp.local
 | bwilson | HR_Department | Standard user |
 | jrutyna-admin | IT_Department | Domain Admin |
 
-### Group Policy — Security Baseline GPO
+### Group Policy - Security Baseline GPO
 
 Linked at the domain level (`corp.local`) with link order 1 (highest precedence). Configured the following Account Policies:
 
@@ -78,11 +78,11 @@ Linked at the domain level (`corp.local`) with link order 1 (highest precedence)
 | Maximum password age | 90 days |
 | Account lockout threshold | 5 invalid attempts |
 
-> **Troubleshooting note:** Account lockout policies in Active Directory only apply domain-wide when the GPO is set to link order 1 at the domain root. Resolved a precedence conflict by promoting Security Baseline above Default Domain Policy rather than modifying Default Domain Policy directly — the correct enterprise approach.
+> **Troubleshooting note:** Account lockout policies in Active Directory only apply domain-wide when the GPO is set to link order 1 at the domain root. Resolved a precedence conflict by promoting Security Baseline above Default Domain Policy rather than modifying Default Domain Policy directly, which is the correct enterprise approach.
 
 ---
 
-## Phase 2 — Client Machine & Helpdesk Scenarios (Complete)
+## Phase 2 - Client Machine and Helpdesk Scenarios (Complete)
 
 ### What was built
 - Deployed Windows 10 Pro VM (`CLIENT01`) with a static IP of `192.168.10.20`
@@ -99,16 +99,16 @@ Linked at the domain level (`corp.local`) with link order 1 (highest precedence)
 | HR_Staff | HR_Department | Security | Global |
 | FileShare_HR | HR_Department | Security | Global |
 
-> Users are never assigned permissions directly — permissions are assigned to security groups, and users are added to groups. This mirrors real enterprise access control practices.
+> Users are never assigned permissions directly. Permissions are assigned to security groups, and users are added to those groups. This mirrors real enterprise access control practices.
 
 ### Helpdesk scenarios practised
 
-**Account lockout & unlock**
+**Account lockout and unlock**
 - Triggered account lockout on `jsmith` by exceeding the 5-attempt threshold from CLIENT01
 - Unlocked the account via Active Directory Users and Computers on DC01 (Properties > Account > Unlock)
 
 **Password reset**
-- Reset `alee`'s password via ADUC with "User must change password at next logon" enforced
+- Reset `alee`s password via ADUC with "User must change password at next logon" enforced
 - Logged in as `alee` on CLIENT01 and completed the forced password change workflow end-to-end
 
 **New user onboarding**
@@ -118,25 +118,51 @@ Linked at the domain level (`corp.local`) with link order 1 (highest precedence)
 
 ---
 
-## Phase 3 — Security & Automation (Planned)
+## Phase 3 - Security and Automation (In Progress)
 
-- [ ] Add Kali Linux VM for basic security testing
-- [ ] Configure PowerShell remoting across the domain
-- [ ] Write PowerShell scripts for bulk user creation and account auditing (see `/scripts`)
-- [ ] Harden DNS settings and review event logs for suspicious activity
-- [ ] Implement additional GPOs (drive mapping, software restriction, wallpaper enforcement)
-- [ ] Set up a shared network folder and apply FileShare_HR permissions
+### PowerShell automation scripts (Complete)
 
----
+All scripts are located in the `/scripts` folder. Each script writes a timestamped log file to `C:\scripts\` on DC01.
 
-## Scripts
+**`New-BulkUsers.ps1`**
+Creates multiple AD user accounts from a CSV file. Handles OU placement, security group assignment, password setting, and forced password change on first logon. Includes duplicate detection and per-user error handling so a single bad row does not abort the entire run.
 
-PowerShell automation scripts will be added to the `/scripts` folder in Phase 3. Planned scripts:
+Sample CSV format:
+```csv
+FirstName,LastName,Username,Department,OU,Group
+Sarah,Connor,sconnor,IT_Department,IT_Department,IT_Staff
+Lisa,Park,lpark,HR_Department,HR_Department,HR_Staff
+```
 
-- `New-BulkUsers.ps1` — Create multiple AD users from a CSV file
-- `Get-LockedAccounts.ps1` — Audit and report locked user accounts
-- `Reset-UserPassword.ps1` — Safely reset a domain user's password
-- `Get-SystemHealthReport.ps1` — Generate a basic system health report
+**`Get-LockedAccounts.ps1`**
+Queries the domain for all currently locked user accounts using `Search-ADAccount -LockedOut`. For each locked account, reports the username, department, bad logon count, last bad password attempt timestamp, and password last set date. Useful as a morning helpdesk audit to catch lockouts before users call in.
+
+**`Get-SystemHealthReport.ps1`**
+Collects a health snapshot of DC01 including OS version and uptime, RAM usage with a warning threshold at 85%, disk usage per drive, status of five critical AD services (ADWS, DNS, Netlogon, NTDS, W32Time), and an Active Directory summary showing total, enabled, disabled, and locked user counts alongside total groups and computers.
+
+Sample output from DC01:
+```
+--- Active Directory Summary ---
+Total Users    : 13
+Enabled        : 11
+Disabled       : 2
+Locked Out     : 0
+Total Groups   : 51
+Total Computers: 2
+```
+### Additional GPOs (In Progress)
+**`Corporate Wallpaper`** GPO (Complete)
+
+- Created a shared folder `C:\Wallpaper` on DC01 and shared it as `\\DC01\Wallpaper` with read access for Domain Users
+- Configured the GPO under User Configuration > Policies > Administrative Templates > Desktop > Desktop Wallpaper, pointing to `\\DC01\Wallpaper\wallpaper.jpg`
+- Linked at the domain level and verified on CLIENT01 using `gpupdate /force`
+
+### Remaining Phase 3 items (Planned)
+- [ ] Corporate wallpaper GPO
+- [ ] USB storage restriction GPO
+- [ ] Mapped network drive GPO for HR users
+- [ ] HR_Share network folder with NTFS and share permissions tied to FileShare_HR group
+- [ ] Event log review (Event IDs 4624, 4625, 4740, 5136)
 
 ---
 
@@ -146,6 +172,8 @@ PowerShell automation scripts will be added to the `/scripts` folder in Phase 3.
 |---|---|---|
 | GPO not applying to CLIENT01 | Policy not yet pulled after domain join | Ran `gpupdate /force`, verified with `gpresult /r` |
 | Account lockout policy not triggering | GPO link order conflict with Default Domain Policy | Promoted Security Baseline to link order 1 at domain root |
+| `Get-ADUser` filter error in script | Variables do not expand inside AD filter blocks | Assigned variable to a plain string before passing to `-Filter {}` |
+| Bulk users created but disabled | `New-ADUser` creates the account before applying the password, so a complexity failure leaves a disabled account | Fixed with `Set-ADAccountPassword` and `Enable-ADAccount` after correcting the password |
 
 ---
 
@@ -159,14 +187,15 @@ PowerShell automation scripts will be added to the `/scripts` folder in Phase 3.
 - Group Policy Object (GPO) creation, linking, and precedence management
 - GPO troubleshooting using `gpupdate /force` and `gpresult /r`
 - Windows 10 Pro domain join and client configuration
-- Helpdesk workflows — account lockout, password reset, new user onboarding
+- Helpdesk workflows: account lockout, password reset, new user onboarding
+- PowerShell scripting for AD automation, auditing, and system health reporting
 - Network adapter configuration and static IP assignment
 - Virtual machine provisioning and network isolation (VirtualBox)
-- IT security fundamentals — least privilege, password policy, account lockout
+- IT security fundamentals: least privilege, password policy, account lockout, RBAC
 
 ---
 
-## Certifications & context
+## Certifications and context
 
 This lab was built to complement preparation for IT support roles and supports skills covered in:
 - **CompTIA Security+** (SY0-701) — earned May 2025
