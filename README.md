@@ -21,7 +21,7 @@ A fully functional Windows Server 2022 Active Directory environment built in Vir
 ## Network Topology
 
 ```
-[macOS Host / VirtualBox]
+[macOS Host - VirtualBox]
         |
         |-- NAT Adapter (internet access for DC01)
         |
@@ -71,7 +71,7 @@ corp.local
 | tbaker | HR_Department | Standard user | Bulk (CSV) |
 | jrutyna-admin | IT_Department | Domain Admin | Manual |
 
-### Group Policy: Security Baseline GPO
+### Group Policy - Security Baseline GPO
 
 Linked at the domain level (`corp.local`) with link order 1 (highest precedence). Configured the following Account Policies:
 
@@ -103,7 +103,7 @@ Linked at the domain level (`corp.local`) with link order 1 (highest precedence)
 | HR_Staff | HR_Department | Security | Global |
 | FileShare_HR | HR_Department | Security | Global |
 
-> Users are never assigned permissions directly. Permissions are assigned to security groups, and users are added to groups. This mirrors real enterprise access control practices.
+> Users are never assigned permissions directly. Permissions are assigned to security groups, and users are added to those groups. This mirrors real enterprise access control practices.
 
 ### Helpdesk scenarios practised
 
@@ -112,7 +112,7 @@ Linked at the domain level (`corp.local`) with link order 1 (highest precedence)
 - Unlocked the account via Active Directory Users and Computers (Properties > Account > Unlock)
 
 **Password reset**
-- Reset `alee`'s password via ADUC with "User must change password at next logon" enforced
+- Reset `alee`s password via ADUC with "User must change password at next logon" enforced
 - Logged in as `alee` on CLIENT01 and completed the forced password change workflow end-to-end
 
 **New user onboarding**
@@ -165,7 +165,7 @@ Generates a system health summary covering OS information, RAM usage, disk space
 - Reviewed Security event logs on DC01 for Event ID `4740` (account lockout) and `4624` (successful logon)
 - Enabled advanced auditing with `auditpol` to capture Event ID `4625` (failed logon) and `5136` (directory service object modification)
 
----
+All scripts are located in the `/scripts` folder. Each script writes a timestamped log file to `C:\scripts\` on DC01.
 
 ## Troubleshooting Log
 
